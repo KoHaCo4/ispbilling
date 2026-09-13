@@ -23,10 +23,10 @@ function ask(question: string): Promise<string> {
 async function main() {
   console.log("=== Buat Akun Admin Pertama (data asli, bukan dummy) ===\n");
 
-  const name = await ask("Admin M");
-  const email = await ask("sny.ispbilling@isp.com");
-  const password = await ask("ispbilling2026");
-  const phone = await ask("");
+  const name = await ask("Nama: ");
+  const email = await ask("Email: ");
+  const password = await ask("Password: ");
+  const phone = await ask("No. HP (opsional): ");
 
   if (!name || !email || password.length < 8) {
     console.error("\nData tidak lengkap atau password terlalu pendek. Batal.");
