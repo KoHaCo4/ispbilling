@@ -4,6 +4,16 @@
   --background: #ffffff;
   --foreground: #171717;
 }
+@theme {
+  --color-ink-dark: #16231f;
+  --color-warm-paper: #f7f5f0;
+  --color-signal-amber: #e8a33d;
+  --color-primary-text: #2b332f;
+  --color-muted-sage: #7c9186;
+
+  --font-archivo: "Archivo", sans-serif;
+  --font-inter: "Inter", sans-serif;
+}
 
 @theme inline {
   --color-background: var(--background);

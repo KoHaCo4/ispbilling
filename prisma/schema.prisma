@@ -1,0 +1,341 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+// ==========================================
+// SCHEMA PRISMA - APLIKASI BILLING ISP
+// ==========================================
+
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// ENUM
+// ==========================================
+
+enum UserRole {
+  ADMIN
+  FINANCE
+  TECHNICIAN
+  COLLECTOR
+}
+
+enum CustomerStatus {
+  ACTIVE
+  SUSPENDED   // isolir karena telat bayar
+  INACTIVE    // berhenti berlangganan
+  PENDING     // baru daftar, belum instalasi
+}
+
+enum ConnectionType {
+  PPPOE
+  HOTSPOT
+  STATIC_IP
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  OVERDUE
+  CANCELLED
+}
+
+enum PaymentMethod {
+  TRANSFER
+  VIRTUAL_ACCOUNT
+  QRIS
+  EWALLET
+  CASH
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// ==========================================
+// USER & AUTH
+// ==========================================
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      UserRole @default(TECHNICIAN)
+  phone     String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relasi
+  areasManaged   Area[]        @relation("AreaTechnician")
+  ticketsHandled Ticket[]      @relation("TicketAssignee")
+  installations  Customer[]    @relation("InstalledBy")
+  auditLogs      AuditLog[]
+
+
+  @@map("users")
+}
+
+// ==========================================
+// AREA (DESA/ZONA)
+// ==========================================
+
+model Area {
+  id          String   @id @default(cuid())
+  name        String   // nama desa
+  district    String   // kecamatan
+  regency     String   // kabupaten
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  technicianId String?
+  technician   User?   @relation("AreaTechnician", fields: [technicianId], references: [id])
+
+  routers          Router[]
+  customers        Customer[]
+  odps             Odp[]
+  areaPackagePrice AreaPackagePrice[]
+
+  @@map("areas")
+}
+
+// ==========================================
+// ROUTER (MIKROTIK)
+// ==========================================
+
+model Router {
+  id           String   @id @default(cuid())
+  name         String   // misal: "BRAS-Desa-Sukamaju"
+  ipAddress    String
+  apiPort      Int      @default(8728)
+  apiUsername  String
+  apiPassword  String   // simpan dalam bentuk terenkripsi di application layer
+  isMainBras   Boolean  @default(false) // true kalau ini router autentikasi PPPoE utama
+  isOnline     Boolean  @default(false)
+  availablePackages Package[] @relation("RouterPackages")
+  lastSeenAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  areaId String
+  area   Area   @relation(fields: [areaId], references: [id])
+
+  customers Customer[]
+  odps      Odp[]
+
+  @@map("routers")
+}
+
+// ODP/ODC untuk ISP fiber - tracking kapasitas port
+model Odp {
+  id          String   @id @default(cuid())
+  code        String   // kode ODP, misal "ODP-SKJ-01"
+  totalPorts  Int      @default(8)
+  usedPorts   Int      @default(0)
+  latitude    Float?
+  longitude   Float?
+  createdAt   DateTime @default(now())
+
+  areaId   String
+  area     Area   @relation(fields: [areaId], references: [id])
+  routerId String?
+  router   Router? @relation(fields: [routerId], references: [id])
+
+  customers Customer[]
+
+  @@map("odps")
+}
+
+// ==========================================
+// PACKAGE (PAKET INTERNET)
+// ==========================================
+
+model Package {
+  id           String   @id @default(cuid())
+  name         String   // misal "Paket Hemat 10 Mbps"
+  speedMbps    Int      // besaran speed
+  price        Int      // harga default (dalam rupiah)
+  mikrotikProfile String?
+  isActive     Boolean  @default(true)
+  availableAtRouters Router[] @relation("RouterPackages")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  customers        Customer[]
+  areaOverrides    AreaPackagePrice[]
+  invoiceItems     Invoice[]
+
+  @@map("packages")
+}
+
+// Harga override per area (opsional, kalau desa jauh biayanya beda)
+model AreaPackagePrice {
+  id        String  @id @default(cuid())
+  price     Int     // harga khusus untuk area ini
+
+  areaId    String
+  area      Area    @relation(fields: [areaId], references: [id])
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+
+  @@unique([areaId, packageId])
+  @@map("area_package_prices")
+}
+
+// ==========================================
+// CUSTOMER (PELANGGAN)
+// ==========================================
+
+model Customer {
+  id             String         @id @default(cuid())
+  customerNumber String         @unique // nomor pelanggan unik
+  name           String
+  nik            String?        // nomor KTP
+  phone          String
+  email          String?
+  address        String
+  latitude       Float?
+  longitude      Float?
+  status         CustomerStatus @default(PENDING)
+  connectionType ConnectionType @default(PPPOE)
+
+  // Kredensial PPPoE/Hotspot yang disinkron ke Mikrotik
+  pppoeUsername  String?  @unique
+  pppoePassword  String?
+  staticIp       String?
+
+  registeredAt   DateTime  @default(now())
+  activatedAt    DateTime?
+  suspendedAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  areaId    String
+  area      Area    @relation(fields: [areaId], references: [id])
+  routerId  String
+  router    Router  @relation(fields: [routerId], references: [id])
+  odpId     String?
+  odp       Odp?    @relation(fields: [odpId], references: [id])
+  packageId String
+  package   Package @relation(fields: [packageId], references: [id])
+
+  installedById String?
+  installedBy   User?   @relation("InstalledBy", fields: [installedById], references: [id])
+
+  invoices Invoice[]
+  tickets  Ticket[]
+
+  @@index([areaId])
+  @@index([routerId])
+  @@map("customers")
+}
+
+// ==========================================
+// BILLING: INVOICE & PAYMENT
+// ==========================================
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        @unique
+  periodMonth   Int
+  periodYear    Int
+  amount        Int
+  lateFee       Int           @default(0)
+  status        InvoiceStatus @default(UNPAID)
+  paymentUrl    String?       // link pembayaran Midtrans, diisi saat invoice terbit
+  dueDate       DateTime
+  paidAt        DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+  packageId  String
+  package    Package  @relation(fields: [packageId], references: [id])
+
+  payments Payment[]
+
+  @@index([customerId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Int
+  method        PaymentMethod
+  referenceId   String?       // ID transaksi dari payment gateway
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+
+  invoiceId String
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+
+  @@map("payments")
+}
+
+// ==========================================
+// TICKETING (KOMPLAIN GANGGUAN)
+// ==========================================
+
+model Ticket {
+  id          String         @id @default(cuid())
+  subject     String
+  description String
+  status      TicketStatus   @default(OPEN)
+  priority    TicketPriority @default(MEDIUM)
+  resolvedAt  DateTime?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  customerId String
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  assigneeId String?
+  assignee   User?   @relation("TicketAssignee", fields: [assigneeId], references: [id])
+
+  @@map("tickets")
+}
+
+// ==========================================
+// AUDIT LOG
+// ==========================================
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String
+  entityType  String
+  entityId    String?
+  description String
+  createdAt   DateTime @default(now())
+
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
