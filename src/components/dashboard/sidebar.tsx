@@ -23,7 +23,7 @@ const navItems: NavItem[] = [
   {
     label: "Tagihan & Pembayaran",
     href: "/dashboard/billing",
-    roles: ["ADMIN", "FINANCE"],
+    roles: ["ADMIN", "FINANCE", "COLLECTOR"],
   },
   { label: "Paket Internet", href: "/dashboard/packages", roles: ["ADMIN"] },
   { label: "Area / Desa", href: "/dashboard/areas", roles: ["ADMIN"] },

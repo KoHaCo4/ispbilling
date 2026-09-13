@@ -21,12 +21,13 @@ export default auth((req) => {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
 
-  // Contoh proteksi berbasis role: hanya ADMIN & FINANCE yang boleh akses /dashboard/billing
+  // Proteksi berbasis role: ADMIN, FINANCE, & COLLECTOR yang boleh akses /dashboard/billing
   const role = req.auth?.user?.role;
   if (
     req.nextUrl.pathname.startsWith("/dashboard/billing") &&
     role !== "ADMIN" &&
-    role !== "FINANCE"
+    role !== "FINANCE" &&
+    role !== "COLLECTOR"
   ) {
     return NextResponse.redirect(new URL("/dashboard", req.nextUrl));
   }
