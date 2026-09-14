@@ -59,10 +59,17 @@ export async function POST(req: NextRequest) {
   });
 
   if (!invoice) {
+    // Balikin 200 (bukan 404) walau invoice tidak ditemukan - ini penting
+    // supaya notifikasi TEST dari Midtrans (order_id-nya dummy/fiktif)
+    // tidak dianggap "gagal" oleh Midtrans. Status non-200 cuma dipakai
+    // untuk kegagalan verifikasi yang beneran serius (signature invalid).
     console.error(
       `[Midtrans Webhook] Invoice tidak ditemukan: ${notif.order_id}`,
     );
-    return NextResponse.json({ error: "Invoice not found" }, { status: 404 });
+    return NextResponse.json({
+      received: true,
+      note: "Order ID tidak ditemukan (kemungkinan notifikasi test)",
+    });
   }
 
   if (invoice.status === "PAID") {
