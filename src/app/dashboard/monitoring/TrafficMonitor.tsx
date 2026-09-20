@@ -98,7 +98,7 @@ export default function TrafficMonitor({
           </div>
 
           {samples.length > 1 ? (
-            <ResponsiveContainer width="100%" height={260}>
+            <ResponsiveContainer width="100%" height={220}>
               <LineChart
                 data={samples}
                 margin={{ top: 4, right: 8, left: 8, bottom: 0 }}

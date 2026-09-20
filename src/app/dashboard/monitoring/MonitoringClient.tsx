@@ -27,8 +27,10 @@ const QUICK_FOLLOWUP_MS = 2000;
 const MAX_SAMPLES = 20;
 const STALE_THRESHOLD_MS = 5 * 60 * 1000;
 
+const STORAGE_PREFIX = "monitoring-snapshot:";
+
 function storageKey(routerId: string) {
-  return `monitoring-snapshot:${routerId}`;
+  return `${STORAGE_PREFIX}${routerId}`;
 }
 
 function loadStored(routerId: string): StoredState | null {
@@ -51,6 +53,28 @@ function saveStored(routerId: string, state: Omit<StoredState, "savedAt">) {
     );
   } catch {
     // localStorage penuh/diblokir - aman diabaikan
+  }
+}
+
+// Buang cache router yang sudah tidak ada lagi di daftar router aktif
+// (misal router-nya sudah dihapus dari sistem) - supaya localStorage tidak
+// menumpuk key "sampah" selamanya. Dipanggil sekali tiap MonitoringClient
+// mount, dengan daftar router yang sedang valid saat itu.
+function cleanupStaleRouterCache(validRouterIds: string[]) {
+  try {
+    const validSet = new Set(validRouterIds);
+    const staleKeys: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (!key || !key.startsWith(STORAGE_PREFIX)) continue;
+      const routerId = key.slice(STORAGE_PREFIX.length);
+      if (!validSet.has(routerId)) {
+        staleKeys.push(key);
+      }
+    }
+    staleKeys.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // localStorage diblokir/tidak tersedia - aman diabaikan
   }
 }
 
@@ -93,6 +117,14 @@ export default function MonitoringClient({
     } catch {
       // localStorage diblokir/tidak tersedia - aman diabaikan, tetap pakai default
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Bersihkan cache grafik untuk router yang sudah tidak ada lagi di
+  // sistem, supaya localStorage tidak menumpuk key router yang sudah
+  // dihapus.
+  useEffect(() => {
+    cleanupStaleRouterCache(routers.map((r) => r.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
