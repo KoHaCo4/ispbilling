@@ -10,7 +10,7 @@ import { setCustomerStatusCore } from "@/services/customer-service";
 import { logAudit } from "@/lib/audit";
 import { auth } from "@/auth";
 
-async function generateCustomerNumber(): Promise<string> {
+export async function generateCustomerNumber(): Promise<string> {
   const count = await prisma.customer.count();
   const nextNumber = count + 1;
   return `CUST-${String(nextNumber).padStart(5, "0")}`;

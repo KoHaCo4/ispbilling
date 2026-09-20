@@ -16,11 +16,13 @@ export default function CustomerForm({
   areas,
   routers,
   packages,
+  suggestedUsername,
 }: {
   action: (formData: FormData) => void;
   areas: Area[];
   routers: Router[];
   packages: Package[];
+  suggestedUsername: string;
 }) {
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [selectedRouterId, setSelectedRouterId] = useState("");
@@ -197,7 +199,7 @@ export default function CustomerForm({
           </label>
           <input
             name="pppoeUsername"
-            placeholder="misal: cust0001"
+            defaultValue={suggestedUsername}
             className="w-full px-3.5 py-2.5 border border-muted-sage/40 text-sm focus:outline-none focus:border-ink-dark"
           />
         </div>

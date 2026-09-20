@@ -31,8 +31,10 @@ export async function withMikrotikClient<T>(
     const result = await callback(client);
     return result;
   } finally {
-    // Tutup koneksi selalu, baik sukses maupun error, biar tidak
-    // ninggalin koneksi menggantung di Mikrotik
-    api.close();
+    // Tutup koneksi selalu, baik sukses maupun error - HARUS di-await,
+    // kalau tidak fungsi ini return duluan sebelum koneksi beneran
+    // tertutup, dan sesi API numpuk pelan-pelan di sisi router sampai
+    // akhirnya kehabisan slot dan bikin semua login jadi lambat.
+    await api.close();
   }
 }

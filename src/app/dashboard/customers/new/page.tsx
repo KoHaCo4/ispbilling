@@ -1,17 +1,24 @@
 import { prisma } from "@/lib/prisma";
-import { createCustomer } from "../actions";
+import { createCustomer, generateCustomerNumber } from "../actions";
 import CustomerForm from "../CustomerForm";
 
 export default async function NewCustomerPage() {
-  const [areas, routers, packages] = await Promise.all([
-    prisma.area.findMany({ orderBy: { name: "asc" } }),
-    prisma.router.findMany({ orderBy: { name: "asc" } }),
-    prisma.package.findMany({
-      where: { isActive: true },
-      include: { availableAtRouters: { select: { id: true } } },
-      orderBy: { price: "asc" },
-    }),
-  ]);
+  const [areas, routers, packages, suggestedCustomerNumber] = await Promise.all(
+    [
+      prisma.area.findMany({ orderBy: { name: "asc" } }),
+      prisma.router.findMany({ orderBy: { name: "asc" } }),
+      prisma.package.findMany({
+        where: { isActive: true },
+        include: { availableAtRouters: { select: { id: true } } },
+        orderBy: { price: "asc" },
+      }),
+      generateCustomerNumber(),
+    ],
+  );
+
+  const suggestUsername = suggestedCustomerNumber
+    .toLowerCase()
+    .replace(/[^a-z0-9]/g, "");
 
   return (
     <div className="max-w-2xl">
@@ -36,6 +43,7 @@ export default async function NewCustomerPage() {
           price: p.price,
           availableAtRouterIds: p.availableAtRouters.map((r) => r.id),
         }))}
+        suggestedUsername={suggestUsername}
       />
     </div>
   );

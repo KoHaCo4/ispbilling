@@ -33,6 +33,11 @@ const navItems: NavItem[] = [
     roles: ["ADMIN", "TECHNICIAN"],
   },
   {
+    label: "Monitoring",
+    href: "/dashboard/monitoring",
+    roles: ["ADMIN", "TECHNICIAN"],
+  },
+  {
     label: "Komplain Gangguan",
     href: "/dashboard/tickets",
     roles: ["ADMIN", "TECHNICIAN"],

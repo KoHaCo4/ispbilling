@@ -229,11 +229,128 @@ export async function listPppoeProfiles(
       const result = await client.menu("/ppp/profile").getAll();
       return (result as Array<Record<string, string>>).map((p) => ({
         name: p.name,
+        // Coba dua kemungkinan nama field - library kadang normalize
+        // "rate-limit" (format asli RouterOS) jadi "rateLimit" (camelCase)
         rateLimit: p["rate-limit"] ?? p.rateLimit ?? "-",
       }));
     });
 
     return { success: true, profiles };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Ringkasan jumlah pelanggan online (sesi PPPoE aktif) vs total yang
+ * terdaftar di router ini - dipakai untuk monitoring ringan di halaman
+ * detail router. Query ini ringan (cuma hitung jumlah baris), aman
+ * dipanggil berkala tanpa membebani router.
+ */
+export async function getActiveSessionSummary(
+  router: RouterCredentials,
+): Promise<
+  | { success: true; activeCount: number; totalSecrets: number }
+  | { success: false; error: string }
+> {
+  try {
+    const result = await withMikrotikClient(router, async (client) => {
+      const [active, secrets] = await Promise.all([
+        client.menu("/ppp/active").getAll(),
+        client.menu("/ppp/secret").getAll(),
+      ]);
+      return { activeCount: active.length, totalSecrets: secrets.length };
+    });
+
+    return { success: true, ...result };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Ambil daftar interface fisik di router - dipakai buat dropdown pilih
+ * interface mana yang mau dimonitor traffic-nya (biasanya interface WAN/
+ * uplink, misal ether1).
+ */
+export async function listInterfaces(
+  router: RouterCredentials,
+): Promise<
+  | { success: true; interfaces: { name: string; running: boolean }[] }
+  | { success: false; error: string }
+> {
+  try {
+    const interfaces = await withMikrotikClient(router, async (client) => {
+      const result = await client.menu("/interface").getAll();
+      return (result as Array<Record<string, string | boolean>>).map((i) => ({
+        name: String(i.name),
+        running: i.running === true || i.running === "true",
+      }));
+    });
+    return { success: true, interfaces };
+  } catch (err) {
+    return { success: false, error: (err as Error).message };
+  }
+}
+
+/**
+ * Ambil byte counter (rx/tx) sebuah interface - dipakai untuk hitung bps
+ * dengan cara ambil 2 sample berturut-turut lalu hitung selisihnya dibagi
+ * waktu (dilakukan di sisi client/browser, bukan di sini).
+ *
+ * CATATAN: command RouterOS aslinya butuh tambahan kata "stats" supaya
+ * rx-byte/tx-byte ikut ditampilkan (defaultnya tidak ada). Kita coba kirim
+ * lewat parameter object { stats: "" } - kalau ternyata tidak berhasil,
+ * field rxBytes/txBytes yang dikembalikan bakal null, dan raw response-nya
+ * di-log ke console server untuk didiagnosis.
+ */
+export async function getInterfaceByteCounters(
+  router: RouterCredentials,
+  interfaceName: string,
+): Promise<
+  | {
+      success: true;
+      rxBytes: number | null;
+      txBytes: number | null;
+      timestamp: number;
+    }
+  | { success: false; error: string }
+> {
+  try {
+    const raw = await withMikrotikClient(router, async (client) => {
+      const result = await client
+        .menu("/interface")
+        .where({ name: interfaceName })
+        .print({ stats: "" });
+      return result as Array<Record<string, string | number>>;
+    });
+
+    if (raw.length === 0) {
+      return {
+        success: false,
+        error: `Interface "${interfaceName}" tidak ditemukan`,
+      };
+    }
+
+    const entry = raw[0];
+    // Coba beberapa kemungkinan nama field (library auto-convert dash ke
+    // camelCase saat baca, tapi kita jaga-jaga kalau ternyata beda)
+    const rxRaw = entry.rxByte ?? entry["rx-byte"] ?? entry.rxbyte;
+    const txRaw = entry.txByte ?? entry["tx-byte"] ?? entry.txbyte;
+
+    if (rxRaw === undefined || txRaw === undefined) {
+      console.error(
+        "[Mikrotik Traffic Debug] rx-byte/tx-byte tidak ditemukan di response. Raw data:",
+        JSON.stringify(entry),
+      );
+    }
+
+    return {
+      success: true,
+      rxBytes: rxRaw !== undefined ? Number(rxRaw) : null,
+      txBytes: txRaw !== undefined ? Number(txRaw) : null,
+      timestamp: Date.now(),
+    };
   } catch (err) {
     return { success: false, error: (err as Error).message };
   }
