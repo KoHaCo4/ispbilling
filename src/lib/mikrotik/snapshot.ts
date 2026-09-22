@@ -22,6 +22,11 @@ import type { RouterCredentials } from "./client";
 export type MonitoringSnapshot = {
   activeCount: number;
   totalSecrets: number;
+  // Username persis yang lagi konek sekarang - dipakai buat cocokkan dengan
+  // data pelanggan di database untuk fitur "Pelanggan Offline" (pelanggan
+  // status ACTIVE di billing tapi username-nya tidak ada di daftar ini
+  // berarti sedang tidak terkoneksi).
+  activeUsernames: string[];
   interfaceNames: string[];
   selectedInterface: string | null;
   rxByte: number | null;
@@ -55,7 +60,9 @@ export async function getMonitoringSnapshot(
     // masih jauh lebih cepat daripada 3 koneksi terpisah, dan lebih
     // aman karena tidak bergantung pada dukungan request paralel
     // library ini.
-    const active = (await conn.write("/ppp/active/print", [])) as unknown[];
+    const active = (await conn.write("/ppp/active/print", [])) as Array<
+      Record<string, string>
+    >;
     const secrets = (await conn.write("/ppp/secret/print", [])) as unknown[];
     const interfaces = (await conn.write("/interface/print", [
       "=stats",
@@ -82,6 +89,7 @@ export async function getMonitoringSnapshot(
       snapshot: {
         activeCount: active.length,
         totalSecrets: secrets.length,
+        activeUsernames: active.map((a) => a.name).filter(Boolean),
         interfaceNames,
         selectedInterface,
         rxByte: selectedEntry ? Number(selectedEntry["rx-byte"] ?? 0) : null,

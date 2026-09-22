@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import TrafficMonitor from "./TrafficMonitor";
 import LiveMonitor from "./LiveMonitor";
-import { getMonitoringSnapshotAction } from "./actions";
+import OfflineCustomers from "./OfflineCustomers";
+import { getMonitoringSnapshotAction, type OfflineCustomer } from "./actions";
 
 type RouterOption = { id: string; name: string; areaName: string };
 type ActiveSample = { time: string; active: number };
@@ -189,6 +190,12 @@ function RouterMonitoring({ routerId }: { routerId: string }) {
   );
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(stored === null);
+  const [offlineCustomers, setOfflineCustomers] = useState<OfflineCustomer[]>(
+    [],
+  );
+  const [totalActivePppoeCustomers, setTotalActivePppoeCustomers] = useState<
+    number | null
+  >(null);
 
   // Ref "bayangan" dari state di atas - dibutuhkan karena poll() dipanggil
   // dari setInterval/setTimeout dan harus selalu baca+tulis nilai TERBARU,
@@ -217,6 +224,8 @@ function RouterMonitoring({ routerId }: { routerId: string }) {
     const snap = result.snapshot;
     setTotalSecrets(snap.totalSecrets);
     setInterfaces(snap.interfaceNames);
+    setOfflineCustomers(result.offlineCustomers);
+    setTotalActivePppoeCustomers(result.totalActivePppoeCustomers);
 
     const effectiveInterface = snap.selectedInterface ?? "";
     if (effectiveInterface !== pollingInterfaceRef.current) {
@@ -324,19 +333,28 @@ function RouterMonitoring({ routerId }: { routerId: string }) {
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-      <LiveMonitor
-        samples={activeSamples}
-        totalSecrets={totalSecrets}
-        error={error}
-        isLoading={isLoading}
-      />
+    <div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+        <LiveMonitor
+          samples={activeSamples}
+          totalSecrets={totalSecrets}
+          error={error}
+          isLoading={isLoading}
+        />
 
-      <TrafficMonitor
-        interfaces={interfaces}
-        selectedInterface={selectedInterface}
-        onSelectInterface={handleSelectInterface}
-        samples={trafficSamples}
+        <TrafficMonitor
+          interfaces={interfaces}
+          selectedInterface={selectedInterface}
+          onSelectInterface={handleSelectInterface}
+          samples={trafficSamples}
+          error={error}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <OfflineCustomers
+        customers={offlineCustomers}
+        totalActive={totalActivePppoeCustomers}
         error={error}
         isLoading={isLoading}
       />
