@@ -60,7 +60,7 @@ const worker = new Worker(
           now.getFullYear(),
         );
         console.log(
-          `[Cron] Generate invoice bulanan selesai - dibuat: ${result.created}, dilewati: ${result.skipped}, total pelanggan aktif: ${result.total}`,
+          `[Cron] Generate invoice bulanan selesai - dibuat: ${result.created}, notifikasi terkirim: ${result.notified}, dilewati: ${result.skipped}, total pelanggan aktif: ${result.total}`,
         );
         return result;
       }

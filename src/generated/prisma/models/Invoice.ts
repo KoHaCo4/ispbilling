@@ -51,6 +51,7 @@ export type InvoiceMinAggregateOutputType = {
   paymentUrl: string | null
   dueDate: Date | null
   paidAt: Date | null
+  notificationSentAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   customerId: string | null
@@ -68,6 +69,7 @@ export type InvoiceMaxAggregateOutputType = {
   paymentUrl: string | null
   dueDate: Date | null
   paidAt: Date | null
+  notificationSentAt: Date | null
   createdAt: Date | null
   updatedAt: Date | null
   customerId: string | null
@@ -85,6 +87,7 @@ export type InvoiceCountAggregateOutputType = {
   paymentUrl: number
   dueDate: number
   paidAt: number
+  notificationSentAt: number
   createdAt: number
   updatedAt: number
   customerId: number
@@ -118,6 +121,7 @@ export type InvoiceMinAggregateInputType = {
   paymentUrl?: true
   dueDate?: true
   paidAt?: true
+  notificationSentAt?: true
   createdAt?: true
   updatedAt?: true
   customerId?: true
@@ -135,6 +139,7 @@ export type InvoiceMaxAggregateInputType = {
   paymentUrl?: true
   dueDate?: true
   paidAt?: true
+  notificationSentAt?: true
   createdAt?: true
   updatedAt?: true
   customerId?: true
@@ -152,6 +157,7 @@ export type InvoiceCountAggregateInputType = {
   paymentUrl?: true
   dueDate?: true
   paidAt?: true
+  notificationSentAt?: true
   createdAt?: true
   updatedAt?: true
   customerId?: true
@@ -256,6 +262,7 @@ export type InvoiceGroupByOutputType = {
   paymentUrl: string | null
   dueDate: Date
   paidAt: Date | null
+  notificationSentAt: Date | null
   createdAt: Date
   updatedAt: Date
   customerId: string
@@ -296,6 +303,7 @@ export type InvoiceWhereInput = {
   paymentUrl?: Prisma.StringNullableFilter<"Invoice"> | string | null
   dueDate?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   paidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  notificationSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   customerId?: Prisma.StringFilter<"Invoice"> | string
@@ -316,6 +324,7 @@ export type InvoiceOrderByWithRelationInput = {
   paymentUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   dueDate?: Prisma.SortOrder
   paidAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  notificationSentAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
@@ -328,6 +337,7 @@ export type InvoiceOrderByWithRelationInput = {
 export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   invoiceNumber?: string
+  customerId_periodMonth_periodYear?: Prisma.InvoiceCustomerIdPeriodMonthPeriodYearCompoundUniqueInput
   AND?: Prisma.InvoiceWhereInput | Prisma.InvoiceWhereInput[]
   OR?: Prisma.InvoiceWhereInput[]
   NOT?: Prisma.InvoiceWhereInput | Prisma.InvoiceWhereInput[]
@@ -339,6 +349,7 @@ export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   paymentUrl?: Prisma.StringNullableFilter<"Invoice"> | string | null
   dueDate?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   paidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  notificationSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   customerId?: Prisma.StringFilter<"Invoice"> | string
@@ -346,7 +357,7 @@ export type InvoiceWhereUniqueInput = Prisma.AtLeast<{
   customer?: Prisma.XOR<Prisma.CustomerScalarRelationFilter, Prisma.CustomerWhereInput>
   package?: Prisma.XOR<Prisma.PackageScalarRelationFilter, Prisma.PackageWhereInput>
   payments?: Prisma.PaymentListRelationFilter
-}, "id" | "invoiceNumber">
+}, "id" | "invoiceNumber" | "customerId_periodMonth_periodYear">
 
 export type InvoiceOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
@@ -359,6 +370,7 @@ export type InvoiceOrderByWithAggregationInput = {
   paymentUrl?: Prisma.SortOrderInput | Prisma.SortOrder
   dueDate?: Prisma.SortOrder
   paidAt?: Prisma.SortOrderInput | Prisma.SortOrder
+  notificationSentAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
@@ -384,6 +396,7 @@ export type InvoiceScalarWhereWithAggregatesInput = {
   paymentUrl?: Prisma.StringNullableWithAggregatesFilter<"Invoice"> | string | null
   dueDate?: Prisma.DateTimeWithAggregatesFilter<"Invoice"> | Date | string
   paidAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Invoice"> | Date | string | null
+  notificationSentAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Invoice"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeWithAggregatesFilter<"Invoice"> | Date | string
   customerId?: Prisma.StringWithAggregatesFilter<"Invoice"> | string
@@ -401,6 +414,7 @@ export type InvoiceCreateInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutInvoicesInput
@@ -419,6 +433,7 @@ export type InvoiceUncheckedCreateInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customerId: string
@@ -437,6 +452,7 @@ export type InvoiceUpdateInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutInvoicesNestedInput
@@ -455,6 +471,7 @@ export type InvoiceUncheckedUpdateInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -473,6 +490,7 @@ export type InvoiceCreateManyInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customerId: string
@@ -490,6 +508,7 @@ export type InvoiceUpdateManyMutationInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
 }
@@ -505,6 +524,7 @@ export type InvoiceUncheckedUpdateManyInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -521,6 +541,12 @@ export type InvoiceOrderByRelationAggregateInput = {
   _count?: Prisma.SortOrder
 }
 
+export type InvoiceCustomerIdPeriodMonthPeriodYearCompoundUniqueInput = {
+  customerId: string
+  periodMonth: number
+  periodYear: number
+}
+
 export type InvoiceCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   invoiceNumber?: Prisma.SortOrder
@@ -532,6 +558,7 @@ export type InvoiceCountOrderByAggregateInput = {
   paymentUrl?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
   paidAt?: Prisma.SortOrder
+  notificationSentAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
@@ -556,6 +583,7 @@ export type InvoiceMaxOrderByAggregateInput = {
   paymentUrl?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
   paidAt?: Prisma.SortOrder
+  notificationSentAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
@@ -573,6 +601,7 @@ export type InvoiceMinOrderByAggregateInput = {
   paymentUrl?: Prisma.SortOrder
   dueDate?: Prisma.SortOrder
   paidAt?: Prisma.SortOrder
+  notificationSentAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
   updatedAt?: Prisma.SortOrder
   customerId?: Prisma.SortOrder
@@ -704,6 +733,7 @@ export type InvoiceCreateWithoutPackageInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutInvoicesInput
@@ -721,6 +751,7 @@ export type InvoiceUncheckedCreateWithoutPackageInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customerId: string
@@ -767,6 +798,7 @@ export type InvoiceScalarWhereInput = {
   paymentUrl?: Prisma.StringNullableFilter<"Invoice"> | string | null
   dueDate?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   paidAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
+  notificationSentAt?: Prisma.DateTimeNullableFilter<"Invoice"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Invoice"> | Date | string
   customerId?: Prisma.StringFilter<"Invoice"> | string
@@ -784,6 +816,7 @@ export type InvoiceCreateWithoutCustomerInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   package: Prisma.PackageCreateNestedOneWithoutInvoiceItemsInput
@@ -801,6 +834,7 @@ export type InvoiceUncheckedCreateWithoutCustomerInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   packageId: string
@@ -844,6 +878,7 @@ export type InvoiceCreateWithoutPaymentsInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customer: Prisma.CustomerCreateNestedOneWithoutInvoicesInput
@@ -861,6 +896,7 @@ export type InvoiceUncheckedCreateWithoutPaymentsInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customerId: string
@@ -894,6 +930,7 @@ export type InvoiceUpdateWithoutPaymentsInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutInvoicesNestedInput
@@ -911,6 +948,7 @@ export type InvoiceUncheckedUpdateWithoutPaymentsInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -928,6 +966,7 @@ export type InvoiceCreateManyPackageInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   customerId: string
@@ -944,6 +983,7 @@ export type InvoiceUpdateWithoutPackageInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customer?: Prisma.CustomerUpdateOneRequiredWithoutInvoicesNestedInput
@@ -961,6 +1001,7 @@ export type InvoiceUncheckedUpdateWithoutPackageInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -978,6 +1019,7 @@ export type InvoiceUncheckedUpdateManyWithoutPackageInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   customerId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -994,6 +1036,7 @@ export type InvoiceCreateManyCustomerInput = {
   paymentUrl?: string | null
   dueDate: Date | string
   paidAt?: Date | string | null
+  notificationSentAt?: Date | string | null
   createdAt?: Date | string
   updatedAt?: Date | string
   packageId: string
@@ -1010,6 +1053,7 @@ export type InvoiceUpdateWithoutCustomerInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   package?: Prisma.PackageUpdateOneRequiredWithoutInvoiceItemsNestedInput
@@ -1027,6 +1071,7 @@ export type InvoiceUncheckedUpdateWithoutCustomerInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   packageId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1044,6 +1089,7 @@ export type InvoiceUncheckedUpdateManyWithoutCustomerInput = {
   paymentUrl?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   dueDate?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   paidAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
+  notificationSentAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   updatedAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
   packageId?: Prisma.StringFieldUpdateOperationsInput | string
@@ -1091,6 +1137,7 @@ export type InvoiceSelect<ExtArgs extends runtime.Types.Extensions.InternalArgs 
   paymentUrl?: boolean
   dueDate?: boolean
   paidAt?: boolean
+  notificationSentAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   customerId?: boolean
@@ -1112,6 +1159,7 @@ export type InvoiceSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Exten
   paymentUrl?: boolean
   dueDate?: boolean
   paidAt?: boolean
+  notificationSentAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   customerId?: boolean
@@ -1131,6 +1179,7 @@ export type InvoiceSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Exten
   paymentUrl?: boolean
   dueDate?: boolean
   paidAt?: boolean
+  notificationSentAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   customerId?: boolean
@@ -1150,13 +1199,14 @@ export type InvoiceSelectScalar = {
   paymentUrl?: boolean
   dueDate?: boolean
   paidAt?: boolean
+  notificationSentAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
   customerId?: boolean
   packageId?: boolean
 }
 
-export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "invoiceNumber" | "periodMonth" | "periodYear" | "amount" | "lateFee" | "status" | "paymentUrl" | "dueDate" | "paidAt" | "createdAt" | "updatedAt" | "customerId" | "packageId", ExtArgs["result"]["invoice"]>
+export type InvoiceOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "invoiceNumber" | "periodMonth" | "periodYear" | "amount" | "lateFee" | "status" | "paymentUrl" | "dueDate" | "paidAt" | "notificationSentAt" | "createdAt" | "updatedAt" | "customerId" | "packageId", ExtArgs["result"]["invoice"]>
 export type InvoiceInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   customer?: boolean | Prisma.CustomerDefaultArgs<ExtArgs>
   package?: boolean | Prisma.PackageDefaultArgs<ExtArgs>
@@ -1190,6 +1240,7 @@ export type $InvoicePayload<ExtArgs extends runtime.Types.Extensions.InternalArg
     paymentUrl: string | null
     dueDate: Date
     paidAt: Date | null
+    notificationSentAt: Date | null
     createdAt: Date
     updatedAt: Date
     customerId: string
@@ -1630,6 +1681,7 @@ export interface InvoiceFieldRefs {
   readonly paymentUrl: Prisma.FieldRef<"Invoice", 'String'>
   readonly dueDate: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly paidAt: Prisma.FieldRef<"Invoice", 'DateTime'>
+  readonly notificationSentAt: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly updatedAt: Prisma.FieldRef<"Invoice", 'DateTime'>
   readonly customerId: Prisma.FieldRef<"Invoice", 'String'>

@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import { setCustomerStatusCore } from "./customer-service";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/fonnte";
 import { createPaymentLink } from "@/lib/midtrans";
@@ -30,6 +31,20 @@ const monthNames = [
   "Desember",
 ];
 
+function delay(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Jeda acak antara 2 angka (inklusif) dalam milidetik - dipakai antar
+// pengiriman WA supaya polanya tidak terlalu mekanis/gampang dikenali
+// sebagai bot (selalu persis N detik).
+function randomDelayMs(minMs: number, maxMs: number) {
+  return Math.floor(minMs + Math.random() * (maxMs - minMs));
+}
+
+const WA_SEND_DELAY_MIN_MS = 30_000; // 30 detik
+const WA_SEND_DELAY_MAX_MS = 60_000; // 60 detik
+
 export async function generateMonthlyInvoicesCore(
   periodMonth: number,
   periodYear: number,
@@ -41,82 +56,127 @@ export async function generateMonthlyInvoicesCore(
 
   let created = 0;
   let skipped = 0;
+  let notified = 0;
 
-  for (const customer of activeCustomers) {
-    const existing = await prisma.invoice.findFirst({
+  for (let i = 0; i < activeCustomers.length; i++) {
+    const customer = activeCustomers[i];
+
+    let invoice = await prisma.invoice.findFirst({
       where: { customerId: customer.id, periodMonth, periodYear },
     });
 
-    if (existing) {
+    // Invoice sudah ada DAN notifikasinya sudah pernah sukses terkirim -
+    // benar-benar tidak ada yang perlu dikerjakan lagi untuk pelanggan ini.
+    if (invoice && invoice.notificationSentAt) {
       skipped++;
       continue;
     }
 
-    const override = await prisma.areaPackagePrice.findUnique({
-      where: {
-        areaId_packageId: {
-          areaId: customer.areaId,
-          packageId: customer.packageId,
+    if (!invoice) {
+      const override = await prisma.areaPackagePrice.findUnique({
+        where: {
+          areaId_packageId: {
+            areaId: customer.areaId,
+            packageId: customer.packageId,
+          },
         },
-      },
-    });
+      });
 
-    const amount = override?.price ?? customer.package.price;
-    const invoiceNumber = await generateInvoiceNumber(periodMonth, periodYear);
-    const dueDate = new Date(periodYear, periodMonth - 1, 10);
-
-    // Generate link pembayaran online SEBELUM invoice disimpan, supaya
-    // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
-    const paymentLinkResult = await createPaymentLink({
-      orderId: invoiceNumber,
-      grossAmount: amount,
-      customerName: customer.name,
-      customerPhone: customer.phone,
-      customerEmail: customer.email,
-    });
-
-    if (!paymentLinkResult.success) {
-      console.error(
-        `[Midtrans] Gagal generate link pembayaran untuk ${invoiceNumber}:`,
-        paymentLinkResult.error,
-      );
-    }
-
-    await prisma.invoice.create({
-      data: {
-        invoiceNumber,
-        customerId: customer.id,
-        packageId: customer.packageId,
+      const amount = override?.price ?? customer.package.price;
+      const invoiceNumber = await generateInvoiceNumber(
         periodMonth,
         periodYear,
-        amount,
-        dueDate,
-        status: "UNPAID",
-        paymentUrl: paymentLinkResult.success
-          ? paymentLinkResult.redirectUrl
-          : null,
-      },
-    });
+      );
+      const dueDate = new Date(periodYear, periodMonth - 1, 10);
 
-    created++;
+      // Generate link pembayaran online SEBELUM invoice disimpan, supaya
+      // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
+      const paymentLinkResult = await createPaymentLink({
+        orderId: invoiceNumber,
+        grossAmount: amount,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        customerEmail: customer.email,
+      });
 
-    const paymentLine = paymentLinkResult.success
-      ? `\n\nBayar online: ${paymentLinkResult.redirectUrl}`
+      if (!paymentLinkResult.success) {
+        console.error(
+          `[Midtrans] Gagal generate link pembayaran untuk ${invoiceNumber}:`,
+          paymentLinkResult.error,
+        );
+      }
+
+      invoice = await prisma.invoice
+        .create({
+          data: {
+            invoiceNumber,
+            customerId: customer.id,
+            packageId: customer.packageId,
+            periodMonth,
+            periodYear,
+            amount,
+            dueDate,
+            status: "UNPAID",
+            paymentUrl: paymentLinkResult.success
+              ? paymentLinkResult.redirectUrl
+              : null,
+          },
+        })
+        .catch(async (err) => {
+          // Kemungkinan proses ini ke-trigger 2x bersamaan (misal tombol
+          // manual diklik dua kali) dan run "lain" barusan lebih dulu bikin
+          // invoice untuk pelanggan+periode yang sama - bukan error asli,
+          // cukup pakai invoice yang sudah dibuat run lain itu.
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === "P2002"
+          ) {
+            const raceWinner = await prisma.invoice.findFirst({
+              where: { customerId: customer.id, periodMonth, periodYear },
+            });
+            if (raceWinner) return raceWinner;
+          }
+          throw err;
+        });
+
+      created++;
+    }
+    // else: invoice sudah ada dari run sebelumnya tapi notificationSentAt
+    // masih kosong (kemungkinan run sebelumnya terhenti tepat di antara
+    // invoice dibuat dan WA terkirim) - lanjut ke pengiriman WA di bawah
+    // tanpa bikin invoice baru/duplikat.
+
+    const paymentLine = invoice.paymentUrl
+      ? `\n\nBayar online: ${invoice.paymentUrl}`
       : "";
 
     const waResult = await sendWhatsAppMessage(
       customer.phone,
-      `Yth. ${customer.name},\n\nTagihan internet periode ${monthNames[periodMonth - 1]} ${periodYear} sebesar Rp${amount.toLocaleString("id-ID")} telah terbit.\nJatuh tempo: ${dueDate.toLocaleDateString("id-ID", { dateStyle: "long" })}.\n\nNo. Invoice: ${invoiceNumber}${paymentLine}\n\nTerima kasih.`,
+      `Yth. ${customer.name},\n\nTagihan internet periode ${monthNames[periodMonth - 1]} ${periodYear} sebesar Rp${invoice.amount.toLocaleString("id-ID")} telah terbit.\nJatuh tempo: ${invoice.dueDate.toLocaleDateString("id-ID", { dateStyle: "long" })}.\n\nNo. Invoice: ${invoice.invoiceNumber}${paymentLine}\n\nTerima kasih.`,
     );
-    if (!waResult.success) {
+
+    if (waResult.success) {
+      await prisma.invoice.update({
+        where: { id: invoice.id },
+        data: { notificationSentAt: new Date() },
+      });
+      notified++;
+    } else {
       console.error(
         `[WhatsApp] Gagal kirim notifikasi invoice ke ${customer.name}:`,
         waResult.error,
       );
     }
+
+    // Jeda antar pengiriman WA supaya tidak dianggap pola spam/broadcast
+    // oleh WhatsApp - dilewati untuk pelanggan terakhir karena tidak ada
+    // lagi kiriman berikutnya yang perlu ditunggu.
+    if (i < activeCustomers.length - 1) {
+      await delay(randomDelayMs(WA_SEND_DELAY_MIN_MS, WA_SEND_DELAY_MAX_MS));
+    }
   }
 
-  return { created, skipped, total: activeCustomers.length };
+  return { created, skipped, notified, total: activeCustomers.length };
 }
 
 export async function markOverdueInvoicesCore(): Promise<number> {
