@@ -5,6 +5,7 @@ import {
   generateMonthlyInvoicesCore,
   markOverdueInvoicesCore,
   autoSuspendOverdueCustomersCore,
+  GRACE_DAYS_BEFORE_SUSPEND,
 } from "../services/invoice-service";
 
 const connection = new IORedis(
@@ -15,7 +16,6 @@ const connection = new IORedis(
 );
 
 const QUEUE_NAME = "isp-billing-cron";
-const GRACE_DAYS_BEFORE_SUSPEND = 7; // jumlah hari toleransi sebelum auto-isolir
 
 export const billingQueue = new Queue(QUEUE_NAME, { connection });
 

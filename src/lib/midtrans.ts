@@ -14,6 +14,13 @@ const snap = new midtransClient.Snap({
  * Generate link pembayaran online (Snap) untuk sebuah invoice.
  * orderId HARUS unik di Midtrans - kita pakai invoiceNumber (sudah unique
  * di database) supaya aman.
+ *
+ * expiryDurationDays: berapa lama link ini valid, dalam hari, dihitung
+ * sejak dibuat SEKARANG (bukan dari tanggal invoice terbit). Kalau tidak
+ * diisi, pakai default Midtrans sendiri (24 jam) - sengaja dibuat opsional
+ * karena tanpa ini link akan expired jauh sebelum tanggal jatuh tempo
+ * invoice, membuat link "Bayar online" di pesan WA jadi mati sebelum
+ * waktunya.
  */
 export async function createPaymentLink(params: {
   orderId: string;
@@ -21,6 +28,7 @@ export async function createPaymentLink(params: {
   customerName: string;
   customerPhone: string;
   customerEmail?: string | null;
+  expiryDurationDays?: number;
 }): Promise<PaymentLinkResult> {
   if (!process.env.MIDTRANS_SERVER_KEY) {
     return { success: false, error: "MIDTRANS_SERVER_KEY belum dikonfigurasi" };
@@ -37,6 +45,16 @@ export async function createPaymentLink(params: {
         phone: params.customerPhone,
         email: params.customerEmail || undefined,
       },
+      // start_time sengaja tidak diisi - default-nya Midtrans hitung dari
+      // waktu request ini dibuat, yang memang itu yang kita mau.
+      ...(params.expiryDurationDays
+        ? {
+            expiry: {
+              unit: "day" as const,
+              duration: Math.max(1, params.expiryDurationDays),
+            },
+          }
+        : {}),
     });
 
     return {

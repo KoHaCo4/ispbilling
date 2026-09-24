@@ -5,6 +5,12 @@ import { sendWhatsAppMessage } from "@/lib/whatsapp/fonnte";
 import { createPaymentLink } from "@/lib/midtrans";
 import { logAudit } from "@/lib/audit";
 
+// Dipakai juga oleh worker/index.ts untuk job auto-suspend-overdue - taruh
+// di sini (bukan di worker) supaya generateMonthlyInvoicesCore bisa pakai
+// angka yang SAMA PERSIS untuk menghitung sampai kapan link pembayaran
+// Midtrans harus tetap valid (lihat pemakaiannya di bawah).
+export const GRACE_DAYS_BEFORE_SUSPEND = 7; // jumlah hari toleransi sebelum auto-isolir
+
 async function generateInvoiceNumber(
   periodMonth: number,
   periodYear: number,
@@ -89,6 +95,22 @@ export async function generateMonthlyInvoicesCore(
       );
       const dueDate = new Date(periodYear, periodMonth - 1, 10);
 
+      // Link pembayaran harus tetap valid setidaknya sampai pelanggan
+      // beresiko diisolir (dueDate + masa tenggang) - bukan cuma 24 jam
+      // default Midtrans, karena jatuh tempo invoice ini baru tanggal 10,
+      // jauh lebih dari 24 jam sejak invoice terbit tanggal 1.
+      const paymentLinkValidUntil = new Date(dueDate);
+      paymentLinkValidUntil.setDate(
+        paymentLinkValidUntil.getDate() + GRACE_DAYS_BEFORE_SUSPEND,
+      );
+      const paymentLinkExpiryDays = Math.max(
+        1,
+        Math.ceil(
+          (paymentLinkValidUntil.getTime() - Date.now()) /
+            (1000 * 60 * 60 * 24),
+        ),
+      );
+
       // Generate link pembayaran online SEBELUM invoice disimpan, supaya
       // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
       const paymentLinkResult = await createPaymentLink({
@@ -97,6 +119,7 @@ export async function generateMonthlyInvoicesCore(
         customerName: customer.name,
         customerPhone: customer.phone,
         customerEmail: customer.email,
+        expiryDurationDays: paymentLinkExpiryDays,
       });
 
       if (!paymentLinkResult.success) {
