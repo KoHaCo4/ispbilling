@@ -2,6 +2,11 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@/generated/prisma/client";
 import { setCustomerStatusCore } from "./customer-service";
 import { sendWhatsAppMessage } from "@/lib/whatsapp/fonnte";
+import {
+  buildInvoiceCreatedMessage,
+  buildOverdueReminderMessage,
+  buildPaymentConfirmationMessage,
+} from "@/lib/whatsapp/templates";
 import { createPaymentLink } from "@/lib/midtrans";
 import { logAudit } from "@/lib/audit";
 
@@ -21,21 +26,6 @@ async function generateInvoiceNumber(
   const nextNumber = count + 1;
   return `INV-${periodYear}${String(periodMonth).padStart(2, "0")}-${String(nextNumber).padStart(5, "0")}`;
 }
-
-const monthNames = [
-  "Januari",
-  "Februari",
-  "Maret",
-  "April",
-  "Mei",
-  "Juni",
-  "Juli",
-  "Agustus",
-  "September",
-  "Oktober",
-  "November",
-  "Desember",
-];
 
 function delay(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -95,21 +85,11 @@ export async function generateMonthlyInvoicesCore(
       );
       const dueDate = new Date(periodYear, periodMonth - 1, 10);
 
-      // Link pembayaran harus tetap valid setidaknya sampai pelanggan
-      // beresiko diisolir (dueDate + masa tenggang) - bukan cuma 24 jam
-      // default Midtrans, karena jatuh tempo invoice ini baru tanggal 10,
-      // jauh lebih dari 24 jam sejak invoice terbit tanggal 1.
-      const paymentLinkValidUntil = new Date(dueDate);
-      paymentLinkValidUntil.setDate(
-        paymentLinkValidUntil.getDate() + GRACE_DAYS_BEFORE_SUSPEND,
-      );
-      const paymentLinkExpiryDays = Math.max(
-        1,
-        Math.ceil(
-          (paymentLinkValidUntil.getTime() - Date.now()) /
-            (1000 * 60 * 60 * 24),
-        ),
-      );
+      // Link pembayaran valid 7 hari sejak invoice dibuat (tetap, bukan
+      // dihitung dari dueDate+grace lagi - itu bisa jadi negatif/minim
+      // kalau invoice dibuat manual di tengah/akhir bulan untuk periode
+      // yang jatuh temponya sudah lewat).
+      const PAYMENT_LINK_VALID_DAYS = 7;
 
       // Generate link pembayaran online SEBELUM invoice disimpan, supaya
       // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
@@ -119,7 +99,7 @@ export async function generateMonthlyInvoicesCore(
         customerName: customer.name,
         customerPhone: customer.phone,
         customerEmail: customer.email,
-        expiryDurationDays: paymentLinkExpiryDays,
+        expiryDurationDays: PAYMENT_LINK_VALID_DAYS,
       });
 
       if (!paymentLinkResult.success) {
@@ -169,13 +149,20 @@ export async function generateMonthlyInvoicesCore(
     // invoice dibuat dan WA terkirim) - lanjut ke pengiriman WA di bawah
     // tanpa bikin invoice baru/duplikat.
 
-    const paymentLine = invoice.paymentUrl
-      ? `\n\nBayar online: ${invoice.paymentUrl}`
-      : "";
-
     const waResult = await sendWhatsAppMessage(
       customer.phone,
-      `Yth. ${customer.name},\n\nTagihan internet periode ${monthNames[periodMonth - 1]} ${periodYear} sebesar Rp${invoice.amount.toLocaleString("id-ID")} telah terbit.\nJatuh tempo: ${invoice.dueDate.toLocaleDateString("id-ID", { dateStyle: "long" })}.\n\nNo. Invoice: ${invoice.invoiceNumber}${paymentLine}\n\nTerima kasih.`,
+      buildInvoiceCreatedMessage({
+        customerName: customer.name,
+        customerNumber: customer.customerNumber,
+        invoiceNumber: invoice.invoiceNumber,
+        pppoeUsername: customer.pppoeUsername,
+        packageName: customer.package.name,
+        amount: invoice.amount,
+        periodMonth,
+        periodYear,
+        dueDate: invoice.dueDate,
+        paymentUrl: invoice.paymentUrl,
+      }),
     );
 
     if (waResult.success) {
@@ -217,19 +204,27 @@ export async function markOverdueInvoicesCore(): Promise<number> {
     data: { status: "OVERDUE" },
   });
 
-  for (const invoice of toMarkOverdue) {
-    const paymentLine = invoice.paymentUrl
-      ? `\n\nBayar online: ${invoice.paymentUrl}`
-      : "";
+  for (let i = 0; i < toMarkOverdue.length; i++) {
+    const invoice = toMarkOverdue[i];
     const waResult = await sendWhatsAppMessage(
       invoice.customer.phone,
-      `Yth. ${invoice.customer.name},\n\nTagihan Anda (No. ${invoice.invoiceNumber}) sebesar Rp${invoice.amount.toLocaleString("id-ID")} telah melewati jatuh tempo.\n\nMohon segera lakukan pembayaran untuk menghindari pemutusan layanan.${paymentLine}\n\nTerima kasih.`,
+      buildOverdueReminderMessage({
+        customerName: invoice.customer.name,
+        amount: invoice.amount,
+        paymentUrl: invoice.paymentUrl,
+      }),
     );
     if (!waResult.success) {
       console.error(
         `[WhatsApp] Gagal kirim notifikasi overdue ke ${invoice.customer.name}:`,
         waResult.error,
       );
+    }
+
+    // Sama seperti generateMonthlyInvoicesCore - jeda antar kirim WA
+    // supaya tidak jadi pola broadcast beruntun.
+    if (i < toMarkOverdue.length - 1) {
+      await delay(randomDelayMs(WA_SEND_DELAY_MIN_MS, WA_SEND_DELAY_MAX_MS));
     }
   }
 
@@ -288,7 +283,7 @@ export async function recordPaymentCore(params: {
 }) {
   const invoice = await prisma.invoice.findUnique({
     where: { id: params.invoiceId },
-    include: { payments: true, customer: true },
+    include: { payments: true, customer: true, package: true },
   });
 
   if (!invoice) {
@@ -323,11 +318,33 @@ export async function recordPaymentCore(params: {
     description: `Pembayaran Rp${params.amount.toLocaleString("id-ID")} (${params.method}) untuk invoice ${invoice.invoiceNumber} dicatat oleh ${params.actorLabel ?? "staf"}${isFullyPaid ? " - LUNAS" : " - sebagian"}`,
   });
 
-  const waMessage = isFullyPaid
-    ? `Yth. ${invoice.customer.name},\n\nPembayaran sebesar Rp${params.amount.toLocaleString("id-ID")} untuk invoice ${invoice.invoiceNumber} telah kami terima. Tagihan Anda LUNAS.\n\nTerima kasih.`
-    : `Yth. ${invoice.customer.name},\n\nPembayaran sebesar Rp${params.amount.toLocaleString("id-ID")} untuk invoice ${invoice.invoiceNumber} telah kami terima. Sisa tagihan: Rp${Math.max(invoice.amount + invoice.lateFee - totalPaid, 0).toLocaleString("id-ID")}.\n\nTerima kasih.`;
+  const paymentMethodLabels: Record<string, string> = {
+    TRANSFER: "Transfer Bank",
+    VIRTUAL_ACCOUNT: "Virtual Account",
+    QRIS: "QRIS",
+    EWALLET: "E-Wallet",
+    CASH: "Tunai",
+  };
 
-  const waResult = await sendWhatsAppMessage(invoice.customer.phone, waMessage);
+  const waResult = await sendWhatsAppMessage(
+    invoice.customer.phone,
+    buildPaymentConfirmationMessage({
+      customerName: invoice.customer.name,
+      customerNumber: invoice.customer.customerNumber,
+      invoiceNumber: invoice.invoiceNumber,
+      pppoeUsername: invoice.customer.pppoeUsername,
+      packageName: invoice.package.name,
+      periodMonth: invoice.periodMonth,
+      periodYear: invoice.periodYear,
+      paymentMethod: paymentMethodLabels[params.method] ?? params.method,
+      isFullyPaid,
+      amountPaid: params.amount,
+      remainingBalance: Math.max(
+        invoice.amount + invoice.lateFee - totalPaid,
+        0,
+      ),
+    }),
+  );
   if (!waResult.success) {
     console.error(
       `[WhatsApp] Gagal kirim konfirmasi pembayaran ke ${invoice.customer.name}:`,

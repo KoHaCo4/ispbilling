@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
 import { generateMonthlyInvoices, markOverdueInvoices } from "./actions";
+import BillingGenerationGuard from "./BillingGenerationGuard";
 
 const statusStyle: Record<string, string> = {
   PAID: "bg-green-50 text-green-700 border-green-200",
@@ -66,7 +67,8 @@ export default async function BillingPage({
   }
 
   return (
-    <div>
+    <BillingGenerationGuard>
+      <div>
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="font-archivo text-2xl font-bold text-primary-text mb-1">
@@ -190,6 +192,7 @@ export default async function BillingPage({
           </tbody>
         </table>
       </div>
-    </div>
+      </div>
+    </BillingGenerationGuard>
   );
 }

@@ -2,6 +2,11 @@ import "dotenv/config";
 import { Queue, Worker } from "bullmq";
 import IORedis from "ioredis";
 import {
+  startInvoiceGenerationStatus,
+  refreshInvoiceGenerationStatus,
+  stopInvoiceGenerationStatus,
+} from "../lib/billing-generation-status";
+import {
   generateMonthlyInvoicesCore,
   markOverdueInvoicesCore,
   autoSuspendOverdueCustomersCore,
@@ -55,14 +60,43 @@ const worker = new Worker(
 
     switch (job.name) {
       case "generate-monthly-invoices": {
-        const result = await generateMonthlyInvoicesCore(
-          now.getMonth() + 1,
-          now.getFullYear(),
-        );
-        console.log(
-          `[Cron] Generate invoice bulanan selesai - dibuat: ${result.created}, notifikasi terkirim: ${result.notified}, dilewati: ${result.skipped}, total pelanggan aktif: ${result.total}`,
-        );
-        return result;
+        const runId = `${job.id ?? "unknown"}-${Date.now()}`;
+        let heartbeat: NodeJS.Timeout | undefined;
+
+        try {
+          await startInvoiceGenerationStatus(runId);
+        } catch (error) {
+          // Status UI tidak boleh menghentikan proses billing jika Redis status
+          // sedang bermasalah. BullMQ sendiri tetap menjadi sumber eksekusi job.
+          console.error("[Billing Status] Gagal menandai proses dimulai:", error);
+        }
+
+        // Proses pengiriman bisa berlangsung lama (30-60 detik per pelanggan),
+        // jadi status di Redis diperpanjang secara berkala agar overlay di
+        // halaman Tagihan tetap aktif selama worker benar-benar bekerja.
+        heartbeat = setInterval(() => {
+          void refreshInvoiceGenerationStatus(runId).catch((error) => {
+            console.error("[Billing Status] Gagal memperbarui heartbeat:", error);
+          });
+        }, 30_000);
+
+        try {
+          const result = await generateMonthlyInvoicesCore(
+            now.getMonth() + 1,
+            now.getFullYear(),
+          );
+          console.log(
+            `[Cron] Generate invoice bulanan selesai - dibuat: ${result.created}, notifikasi terkirim: ${result.notified}, dilewati: ${result.skipped}, total pelanggan aktif: ${result.total}`,
+          );
+          return result;
+        } finally {
+          if (heartbeat) clearInterval(heartbeat);
+          try {
+            await stopInvoiceGenerationStatus(runId);
+          } catch (error) {
+            console.error("[Billing Status] Gagal menandai proses selesai:", error);
+          }
+        }
       }
 
       case "mark-overdue-invoices": {
