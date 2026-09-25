@@ -41,6 +41,10 @@ function randomDelayMs(minMs: number, maxMs: number) {
 const WA_SEND_DELAY_MIN_MS = 30_000; // 30 detik
 const WA_SEND_DELAY_MAX_MS = 60_000; // 60 detik
 
+// Link pembayaran valid 7 hari sejak dibuat (baik saat invoice pertama kali
+// terbit, maupun saat percobaan ulang generate link yang sebelumnya gagal).
+const PAYMENT_LINK_VALID_DAYS = 7;
+
 export async function generateMonthlyInvoicesCore(
   periodMonth: number,
   periodYear: number,
@@ -85,12 +89,6 @@ export async function generateMonthlyInvoicesCore(
       );
       const dueDate = new Date(periodYear, periodMonth - 1, 10);
 
-      // Link pembayaran valid 7 hari sejak invoice dibuat (tetap, bukan
-      // dihitung dari dueDate+grace lagi - itu bisa jadi negatif/minim
-      // kalau invoice dibuat manual di tengah/akhir bulan untuk periode
-      // yang jatuh temponya sudah lewat).
-      const PAYMENT_LINK_VALID_DAYS = 7;
-
       // Generate link pembayaran online SEBELUM invoice disimpan, supaya
       // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
       const paymentLinkResult = await createPaymentLink({
@@ -109,38 +107,36 @@ export async function generateMonthlyInvoicesCore(
         );
       }
 
-      invoice = await prisma.invoice
-        .create({
-          data: {
-            invoiceNumber,
-            customerId: customer.id,
-            packageId: customer.packageId,
-            periodMonth,
-            periodYear,
-            amount,
-            dueDate,
-            status: "UNPAID",
-            paymentUrl: paymentLinkResult.success
-              ? paymentLinkResult.redirectUrl
-              : null,
-          },
-        })
-        .catch(async (err) => {
-          // Kemungkinan proses ini ke-trigger 2x bersamaan (misal tombol
-          // manual diklik dua kali) dan run "lain" barusan lebih dulu bikin
-          // invoice untuk pelanggan+periode yang sama - bukan error asli,
-          // cukup pakai invoice yang sudah dibuat run lain itu.
-          if (
-            err instanceof Prisma.PrismaClientKnownRequestError &&
-            err.code === "P2002"
-          ) {
-            const raceWinner = await prisma.invoice.findFirst({
-              where: { customerId: customer.id, periodMonth, periodYear },
-            });
-            if (raceWinner) return raceWinner;
-          }
-          throw err;
-        });
+      invoice = await prisma.invoice.create({
+        data: {
+          invoiceNumber,
+          customerId: customer.id,
+          packageId: customer.packageId,
+          periodMonth,
+          periodYear,
+          amount,
+          dueDate,
+          status: "UNPAID",
+          paymentUrl: paymentLinkResult.success
+            ? paymentLinkResult.redirectUrl
+            : null,
+        },
+      }).catch(async (err) => {
+        // Kemungkinan proses ini ke-trigger 2x bersamaan (misal tombol
+        // manual diklik dua kali) dan run "lain" barusan lebih dulu bikin
+        // invoice untuk pelanggan+periode yang sama - bukan error asli,
+        // cukup pakai invoice yang sudah dibuat run lain itu.
+        if (
+          err instanceof Prisma.PrismaClientKnownRequestError &&
+          err.code === "P2002"
+        ) {
+          const raceWinner = await prisma.invoice.findFirst({
+            where: { customerId: customer.id, periodMonth, periodYear },
+          });
+          if (raceWinner) return raceWinner;
+        }
+        throw err;
+      });
 
       created++;
     }
@@ -148,6 +144,32 @@ export async function generateMonthlyInvoicesCore(
     // masih kosong (kemungkinan run sebelumnya terhenti tepat di antara
     // invoice dibuat dan WA terkirim) - lanjut ke pengiriman WA di bawah
     // tanpa bikin invoice baru/duplikat.
+    else if (!invoice.paymentUrl) {
+      // Invoice sudah ada tapi link pembayarannya dulu gagal dibuat (misal
+      // Midtrans lagi gangguan koneksi sesaat) - coba generate ulang di
+      // sini, supaya tidak selamanya terjebak tanpa link cuma karena
+      // gagal sekali di percobaan pertama.
+      const paymentLinkRetry = await createPaymentLink({
+        orderId: invoice.invoiceNumber,
+        grossAmount: invoice.amount,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        customerEmail: customer.email,
+        expiryDurationDays: PAYMENT_LINK_VALID_DAYS,
+      });
+
+      if (paymentLinkRetry.success) {
+        invoice = await prisma.invoice.update({
+          where: { id: invoice.id },
+          data: { paymentUrl: paymentLinkRetry.redirectUrl },
+        });
+      } else {
+        console.error(
+          `[Midtrans] Percobaan ulang generate link untuk ${invoice.invoiceNumber} masih gagal:`,
+          paymentLinkRetry.error,
+        );
+      }
+    }
 
     const waResult = await sendWhatsAppMessage(
       customer.phone,
