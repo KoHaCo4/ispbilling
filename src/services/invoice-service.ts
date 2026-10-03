@@ -45,6 +45,15 @@ const WA_SEND_DELAY_MAX_MS = 60_000; // 60 detik
 // terbit, maupun saat percobaan ulang generate link yang sebelumnya gagal).
 const PAYMENT_LINK_VALID_DAYS = 7;
 
+// Biaya admin pembayaran online, dibebankan ke PELANGGAN (bukan ditanggung
+// usaha) - ditambahkan ke gross_amount yang dikirim ke Midtrans, supaya
+// uang bersih yang diterima tetap sesuai nilai invoice. Dipakai juga oleh
+// webhook (src/app/api/webhooks/midtrans/route.ts) untuk mengeluarkan lagi
+// porsi ini sebelum dicatat sebagai Payment - supaya Rp2.500 ini TIDAK ikut
+// kehitung di laporan pendapatan (itu cuma nitip-lewat ke Midtrans, bukan
+// pendapatan usaha).
+export const ONLINE_PAYMENT_ADMIN_FEE = 2_500;
+
 export async function generateMonthlyInvoicesCore(
   periodMonth: number,
   periodYear: number,
@@ -93,7 +102,7 @@ export async function generateMonthlyInvoicesCore(
       // paymentUrl bisa langsung diisi dalam satu create (bukan create lalu update)
       const paymentLinkResult = await createPaymentLink({
         orderId: invoiceNumber,
-        grossAmount: amount,
+        grossAmount: amount + ONLINE_PAYMENT_ADMIN_FEE,
         customerName: customer.name,
         customerPhone: customer.phone,
         customerEmail: customer.email,
@@ -107,36 +116,38 @@ export async function generateMonthlyInvoicesCore(
         );
       }
 
-      invoice = await prisma.invoice.create({
-        data: {
-          invoiceNumber,
-          customerId: customer.id,
-          packageId: customer.packageId,
-          periodMonth,
-          periodYear,
-          amount,
-          dueDate,
-          status: "UNPAID",
-          paymentUrl: paymentLinkResult.success
-            ? paymentLinkResult.redirectUrl
-            : null,
-        },
-      }).catch(async (err) => {
-        // Kemungkinan proses ini ke-trigger 2x bersamaan (misal tombol
-        // manual diklik dua kali) dan run "lain" barusan lebih dulu bikin
-        // invoice untuk pelanggan+periode yang sama - bukan error asli,
-        // cukup pakai invoice yang sudah dibuat run lain itu.
-        if (
-          err instanceof Prisma.PrismaClientKnownRequestError &&
-          err.code === "P2002"
-        ) {
-          const raceWinner = await prisma.invoice.findFirst({
-            where: { customerId: customer.id, periodMonth, periodYear },
-          });
-          if (raceWinner) return raceWinner;
-        }
-        throw err;
-      });
+      invoice = await prisma.invoice
+        .create({
+          data: {
+            invoiceNumber,
+            customerId: customer.id,
+            packageId: customer.packageId,
+            periodMonth,
+            periodYear,
+            amount,
+            dueDate,
+            status: "UNPAID",
+            paymentUrl: paymentLinkResult.success
+              ? paymentLinkResult.redirectUrl
+              : null,
+          },
+        })
+        .catch(async (err) => {
+          // Kemungkinan proses ini ke-trigger 2x bersamaan (misal tombol
+          // manual diklik dua kali) dan run "lain" barusan lebih dulu bikin
+          // invoice untuk pelanggan+periode yang sama - bukan error asli,
+          // cukup pakai invoice yang sudah dibuat run lain itu.
+          if (
+            err instanceof Prisma.PrismaClientKnownRequestError &&
+            err.code === "P2002"
+          ) {
+            const raceWinner = await prisma.invoice.findFirst({
+              where: { customerId: customer.id, periodMonth, periodYear },
+            });
+            if (raceWinner) return raceWinner;
+          }
+          throw err;
+        });
 
       created++;
     }
@@ -151,7 +162,7 @@ export async function generateMonthlyInvoicesCore(
       // gagal sekali di percobaan pertama.
       const paymentLinkRetry = await createPaymentLink({
         orderId: invoice.invoiceNumber,
-        grossAmount: invoice.amount,
+        grossAmount: invoice.amount + ONLINE_PAYMENT_ADMIN_FEE,
         customerName: customer.name,
         customerPhone: customer.phone,
         customerEmail: customer.email,
@@ -184,6 +195,7 @@ export async function generateMonthlyInvoicesCore(
         periodYear,
         dueDate: invoice.dueDate,
         paymentUrl: invoice.paymentUrl,
+        onlineAdminFee: ONLINE_PAYMENT_ADMIN_FEE,
       }),
     );
 
@@ -234,6 +246,7 @@ export async function markOverdueInvoicesCore(): Promise<number> {
         customerName: invoice.customer.name,
         amount: invoice.amount,
         paymentUrl: invoice.paymentUrl,
+        onlineAdminFee: ONLINE_PAYMENT_ADMIN_FEE,
       }),
     );
     if (!waResult.success) {

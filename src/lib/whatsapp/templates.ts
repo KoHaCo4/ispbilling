@@ -64,6 +64,23 @@ function signatureSection(): string {
   return lines.join("\n");
 }
 
+// Blok "Metode Pembayaran Otomatis" - dipakai di pesan invoice terbit dan
+// reminder overdue. Kalau onlineAdminFee > 0, tampilkan rinciannya biar
+// jelas kenapa angka yang muncul di halaman Midtrans beda dari Total di
+// invoice (bukan salah hitung - memang sengaja ditambah biaya admin yang
+// dibebankan ke pelanggan, bukan ditanggung usaha).
+function paymentSection(
+  amount: number,
+  onlineAdminFee: number,
+  paymentUrl: string | null,
+): string {
+  if (!paymentUrl) return "";
+
+  const feeLine = onlineAdminFee > 0 ? `` : "";
+
+  return `*Metode Pembayaran Otomatis*\nBank Virtual Account, OVO, DANA, LinkAja, ShopeePay, Alfamart, QRIS\n${feeLine}Klik => ${paymentUrl}`;
+}
+
 const FOOTER_DISCLAIMER =
   "_Ini adalah pesan otomatis - mohon untuk tidak membalas langsung ke pesan ini_";
 
@@ -84,6 +101,7 @@ export function buildInvoiceCreatedMessage(params: {
   periodYear: number;
   dueDate: Date;
   paymentUrl: string | null;
+  onlineAdminFee?: number;
 }): string {
   const details = [
     `ID Pelanggan: ${params.customerNumber}`,
@@ -94,16 +112,16 @@ export function buildInvoiceCreatedMessage(params: {
     `Jatuh tempo: ${formatDate(params.dueDate)}`,
   ].join("\n");
 
-  const paymentSection = params.paymentUrl
-    ? `*Metode Pembayaran Otomatis*\nBank Virtual Account, OVO, DANA, LinkAja, ShopeePay, Alfamart, QRIS\nKlik => ${params.paymentUrl}`
-    : "";
-
   return buildMessage([
     `Salam ${params.customerName}`,
     "Kami informasikan invoice Anda telah terbit dan dapat dibayarkan, berikut rinciannya:",
     details,
     "Mohon segera lakukan pembayaran sebelum jatuh tempo, agar internet Anda tidak terisolir.",
-    paymentSection,
+    paymentSection(
+      params.amount,
+      params.onlineAdminFee ?? 0,
+      params.paymentUrl,
+    ),
     contactSection(),
     signatureSection(),
     FOOTER_DISCLAIMER,
@@ -114,15 +132,16 @@ export function buildOverdueReminderMessage(params: {
   customerName: string;
   amount: number;
   paymentUrl: string | null;
+  onlineAdminFee?: number;
 }): string {
-  const paymentSection = params.paymentUrl
-    ? `*Metode Pembayaran Otomatis*\nBank Virtual Account, OVO, DANA, LinkAja, ShopeePay, Alfamart, QRIS\nKlik => ${params.paymentUrl}`
-    : "";
-
   return buildMessage([
     `Salam ${params.customerName}`,
     `Kami informasikan tagihan Anda senilai ${formatRupiah(params.amount)} belum dibayar, mohon segera lakukan pembayaran sebelum akun Anda terisolir.\nAbaikan pesan ini bila sudah membayar.`,
-    paymentSection,
+    paymentSection(
+      params.amount,
+      params.onlineAdminFee ?? 0,
+      params.paymentUrl,
+    ),
     contactSection(),
     signatureSection(),
     FOOTER_DISCLAIMER,

@@ -10,6 +10,30 @@ const snap = new midtransClient.Snap({
   clientKey: process.env.MIDTRANS_CLIENT_KEY ?? "",
 });
 
+// Cuma Virtual Account (semua bank) + QRIS universal - dua metode yang
+// biayanya paling masuk akal ditutup oleh ONLINE_PAYMENT_ADMIN_FEE
+// (lihat invoice-service.ts). GoPay/ShopeePay/kartu kredit sengaja
+// DIKELUARKAN karena biayanya (2%, 1.5%, 2.9%+Rp2000) bisa jauh lebih
+// besar dari Rp2.500 untuk tagihan paket yang lebih mahal.
+//
+// Sengaja pakai "other_qris" (QRIS generik, bisa discan e-wallet apa saja
+// - OVO/DANA/ShopeePay/GoPay dll), BUKAN "gopay" - karena channel "gopay"
+// di Snap kadang otomatis beralih ke mode deeplink aplikasi GoPay
+// (bukan QRIS) tergantung device pelanggan, yang kena tarif GoPay 2%,
+// bukan tarif QRIS.
+const ENABLED_PAYMENT_METHODS = [
+  "bank_transfer", // alias Midtrans untuk: permata_va, bca_va, bni_va, bri_va, echannel (Mandiri)
+  "cimb_va",
+  "other_va", // jaring pengaman untuk bank VA lain di luar daftar atas
+  "other_qris",
+  // "gopay",        // GoPay e-wallet/deeplink - biaya 2%
+  // "shopeepay",    // ShopeePay e-wallet/deeplink - biaya 1,5%
+  // "credit_card",  // Kartu kredit/debit - biaya 2,9% + Rp2.000
+  // "indomaret",    // Bayar tunai di gerai Indomaret
+  // "alfamart",     // Bayar tunai di gerai Alfamart (dulu disebut "cstore")
+  // "akulaku",      // Paylater Akulaku
+];
+
 /**
  * Generate link pembayaran online (Snap) untuk sebuah invoice.
  * orderId HARUS unik di Midtrans - kita pakai invoiceNumber (sudah unique
@@ -45,6 +69,7 @@ export async function createPaymentLink(params: {
         phone: params.customerPhone,
         email: params.customerEmail || undefined,
       },
+      enabled_payments: ENABLED_PAYMENT_METHODS,
       // start_time sengaja tidak diisi - default-nya Midtrans hitung dari
       // waktu request ini dibuat, yang memang itu yang kita mau.
       ...(params.expiryDurationDays

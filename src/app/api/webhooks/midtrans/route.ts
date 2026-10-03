@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { prisma } from "@/lib/prisma";
-import { recordPaymentCore } from "@/services/invoice-service";
+import {
+  recordPaymentCore,
+  ONLINE_PAYMENT_ADMIN_FEE,
+} from "@/services/invoice-service";
 
 type MidtransNotification = {
   order_id: string;
@@ -77,9 +80,19 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ received: true, note: "Already paid" });
   }
 
+  // gross_amount dari Midtrans sudah termasuk ONLINE_PAYMENT_ADMIN_FEE yang
+  // kita tambahkan sendiri waktu generate link (lihat invoice-service.ts) -
+  // keluarkan lagi di sini supaya yang tercatat sebagai Payment (dan ikut
+  // dihitung di laporan pendapatan) cuma porsi bersihnya, bukan termasuk
+  // biaya admin yang sebetulnya cuma "numpang lewat" ke Midtrans.
+  const netAmount = Math.max(
+    0,
+    Math.round(Number(notif.gross_amount)) - ONLINE_PAYMENT_ADMIN_FEE,
+  );
+
   await recordPaymentCore({
     invoiceId: invoice.id,
-    amount: Math.round(Number(notif.gross_amount)),
+    amount: netAmount,
     method: mapPaymentMethod(notif.payment_type),
     referenceId: notif.transaction_id,
     userId: null, // otomatis dari webhook, bukan staf
